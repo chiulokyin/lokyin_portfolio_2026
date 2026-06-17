@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Chiu Lok Yin — Selected Works 2023–2025</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:    #ffffff;
+      --paper:  #000000;
+      --rule:   #2a2a2a;
+      --ghost:  #555555;
+      --accent: #999999;
+      --font:   'Helvetica Neue', Helvetica, Arial, sans-serif;
+      --hh:     48px;
+      --fh:     48px;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font);
+      font-weight: 200;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* ── HEADER ── always fixed, never zooms ── */
+    #header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--hh);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--rule);
+      background: var(--paper);
+      z-index: 300;
+      user-select: none;
+    }
+    .h-name {
+      font-size: clamp(9px, 2.4vw, 13px);
+      font-weight: 200;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .h-meta {
+      font-size: clamp(7px, 1.6vw, 10px);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ghost);
+      white-space: nowrap;
+    }
+
+    /* ── FOOTER ── always fixed, never zooms ── */
+    #toolbar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: var(--fh);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-top: 1px solid var(--rule);
+      background: var(--paper);
+      z-index: 300;
+      user-select: none;
+    }
+    .tb-btn {
+      background: none; border: none; cursor: pointer;
+      height: var(--fh);
+      padding: 0 clamp(6px, 1.8vw, 14px);
+      display: flex; align-items: center; gap: 5px;
+      font-family: var(--font);
+      font-size: clamp(7px, 1.6vw, 10px);
+      font-weight: 200;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+    .tb-btn:hover       { color: var(--ink); }
+    .tb-btn:disabled    { color: var(--rule); cursor: default; }
+    .tb-btn.is-active   { color: var(--ink); }
+    .tb-btn svg         { flex-shrink: 0; }
+    .tb-div             { width: 1px; height: 14px; background: var(--rule); margin: 0 2px; flex-shrink: 0; }
+    #page-counter {
+      min-width: 64px; text-align: center;
+      font-size: clamp(7px, 1.6vw, 10px);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--ghost); flex-shrink: 0;
+    }
+
+    /* ══════════════════════════════════════════════
+       FLIPBOOK VIEW  (desktop + landscape phone)
+    ══════════════════════════════════════════════ */
+    #flipbook-shell {
+      position: fixed;
+      top: var(--hh); bottom: var(--fh); left: 0; right: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--paper);
+      overflow: hidden;
+    }
+
+    /* stage is the element we transform for pinch */
+    #stage {
+      position: relative;
+      transform-origin: center center;
+      will-change: transform;
+      cursor: grab;
+    }
+    #stage:active { cursor: grabbing; }
+
+    .page-wrap {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+    .page-wrap.visible  { opacity: 1; pointer-events: auto; }
+    .page-wrap.hidden   { opacity: 0; pointer-events: none; }
+    .page-wrap.fade-in  { animation: fadeIn 0.4s ease forwards; }
+    .page-wrap.fade-out { animation: fadeOut 0.35s ease forwards; }
+
+    @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+    canvas { display: block; image-rendering: -webkit-optimize-contrast; }
+
+    .watermark {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 5;
+    }
+    .watermark svg { width: 65%; opacity: 0.045; user-select: none; }
+
+    /* ══════════════════════════════════════════════
+       VERTICAL STRIP VIEW  (portrait phone only)
+    ══════════════════════════════════════════════ */
+    #strip-shell {
+      display: none;
+      position: fixed;
+      top: var(--hh); bottom: var(--fh); left: 0; right: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      background: var(--paper);
+      scroll-snap-type: y mandatory;
+    }
+    .strip-page {
+      width: 100%;
+      display: flex; align-items: center; justify-content: center;
+      scroll-snap-align: start;
+      position: relative;
+      background: var(--paper);
+      flex-shrink: 0;
+    }
+    .strip-page canvas { display: block; width: 100%; height: auto; }
+    .strip-page .watermark { position: absolute; inset: 0; }
+
+    /* ══════════════════════════════════════════════
+       GRID VIEW
+    ══════════════════════════════════════════════ */
+    #grid-shell {
+      display: none;
+      position: fixed;
+      top: var(--hh); bottom: var(--fh); left: 0; right: 0;
+      overflow-y: auto; overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      background: var(--paper);
+      padding: 12px;
+      touch-action: pan-y;
+    }
+    #grid-shell.active { display: block; }
+
+    #grid-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr); /* 2 col on mobile */
+      gap: 8px;
+    }
+    @media (min-width: 600px) {
+      #grid-container { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (min-width: 900px) {
+      #grid-container { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (min-width: 1200px) {
+      #grid-container { grid-template-columns: repeat(5, 1fr); }
+    }
+
+    .grid-thumb {
+      position: relative; overflow: hidden;
+      background: #0d0d0d;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: border-color 0.15s;
+    }
+    .grid-thumb:hover  { border-color: var(--accent); }
+    .grid-thumb canvas { display: block; width: 100%; height: auto; }
+    .grid-thumb .wm-grid { position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+    .grid-thumb .wm-grid svg { width: 80%; opacity: 0.045; }
+    .grid-thumb .g-num {
+      position: absolute; bottom: 5px; right: 7px;
+      font-size: 8px; letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.3);
+    }
+
+    /* ══════════════════════════════════════════════
+       LOADING
+    ══════════════════════════════════════════════ */
+    #loading {
+      position: fixed; inset: 0; background: var(--paper);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px;
+      z-index: 500;
+    }
+    .l-name { font-size: clamp(13px,4vw,20px); font-weight:200; letter-spacing:0.28em; text-transform:uppercase; }
+    .l-sub  { font-size: clamp(8px,2vw,10px);  font-weight:200; letter-spacing:0.20em; text-transform:uppercase; color:var(--ghost); }
+    .l-track { width: min(180px,55vw); height:1px; background:var(--rule); position:relative; overflow:hidden; }
+    .l-fill  { position:absolute; top:0; left:0; height:100%; width:0%; background:#fff; transition:width 0.3s ease; }
+
+    /* copyright */
+    #copyright {
+      position: fixed; bottom: calc(var(--fh) + 7px); right: 12px;
+      font-size: 9px; letter-spacing: 0.08em; color: #2a2a2a;
+      z-index: 301; user-select: none; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="l-name">Chiu Lok Yin</div>
+  <div class="l-sub">Selected Works 2023 – 2025</div>
+  <div class="l-track"><div class="l-fill" id="load-fill"></div></div>
+</div>
+
+<div id="header">
+  <span class="h-name">Chiu Lok Yin</span>
+  <span class="h-meta">Selected Works — 2023 / 2025</span>
+</div>
+
+<!-- Flipbook (desktop + landscape) -->
+<div id="flipbook-shell">
+  <div id="stage"></div>
+</div>
+
+<!-- Vertical strip (portrait phone) -->
+<div id="strip-shell" id="strip-shell"></div>
+
+<!-- Grid -->
+<div id="grid-shell">
+  <div id="grid-container"></div>
+</div>
+
+<div id="copyright">© 2026 Chiu Lok Yin. All rights reserved.</div>
+
+<div id="toolbar">
+  <button class="tb-btn" id="btn-first">
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="1.5" height="10" fill="currentColor"/><path d="M11 1L4 6l7 5V1z" fill="currentColor"/></svg>
+    First
+  </button>
+  <div class="tb-div"></div>
+  <button class="tb-btn" id="btn-prev">
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M8 1L3 6l5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Prev
+  </button>
+  <div id="page-counter">— / —</div>
+  <button class="tb-btn" id="btn-next">
+    Next
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M4 1l5 5-5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <div class="tb-div"></div>
+  <button class="tb-btn" id="btn-last">
+    Last
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="9.5" y="1" width="1.5" height="10" fill="currentColor"/><path d="M1 1l7 5-7 5V1z" fill="currentColor"/></svg>
+  </button>
+  <div class="tb-div"></div>
+  <button class="tb-btn" id="btn-grid">
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+      <rect x="1" y="1" width="4" height="4" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="7" y="1" width="4" height="4" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="1" y="7" width="4" height="4" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="7" y="7" width="4" height="4" stroke="currentColor" stroke-width="1.2"/>
+    </svg>
+    Grid
+  </button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// SETUP
+// ═══════════════════════════════════════════
+const PDF_URL   = 'portfolio.pdf';
+const AUTHOR    = 'Chiu Lok Yin';
+const COPYRIGHT = `© 2026 ${AUTHOR}. All rights reserved.`;
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// Block browser-native zoom / scroll interfering
+document.addEventListener('touchmove',   e => { if (!e.target.closest('#grid-shell') && !e.target.closest('#strip-shell')) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchstart',  e => { if (e.touches.length > 1 && !e.target.closest('#grid-shell') && !e.target.closest('#strip-shell')) e.preventDefault(); }, { passive: false });
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('dragstart',   e => e.preventDefault());
+document.addEventListener('selectstart', e => e.preventDefault());
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let pdfDoc       = null;
+let totalPages   = 0;
+let currentPage  = 1;
+let rendering    = false;
+let gridMode     = false;
+let gridRendered = new Set();
+let stripBuilt   = false;
+
+// Layout mode
+function isPortraitMobile() {
+  return window.innerWidth < 600 && window.innerHeight > window.innerWidth;
+}
+
+// DPR: full on mobile for sharpness, cap at 1.5 on desktop (already sharp)
+function getDPR() {
+  return isPortraitMobile()
+    ? Math.min(window.devicePixelRatio || 1, 3)
+    : Math.min(window.devicePixelRatio || 1, 1.5);
+}
+
+// ═══════════════════════════════════════════
+// WATERMARK HELPER
+// ═══════════════════════════════════════════
+function makeWatermark() {
+  const wm = document.createElement('div');
+  wm.className = 'watermark';
+  wm.innerHTML = `<svg viewBox="0 0 400 80" xmlns="http://www.w3.org/2000/svg">
+    <text x="200" y="48" text-anchor="middle" font-family="sans-serif"
+          font-size="26" letter-spacing="8" fill="#fff">${AUTHOR.toUpperCase()}</text>
+    <text x="200" y="68" text-anchor="middle" font-family="sans-serif"
+          font-size="9"  letter-spacing="4" fill="#fff">${COPYRIGHT}</text>
+  </svg>`;
+  return wm;
+}
+
+// ═══════════════════════════════════════════
+// DIMENSIONS
+// ═══════════════════════════════════════════
+function viewerW() { return window.innerWidth; }
+function viewerH() { return window.innerHeight - 48 - 48; }
+
+function fitScale(rawVP) {
+  // No padding on desktop — fill edge to edge.
+  // Small padding on mobile so content doesn't clip.
+  const pad = isPortraitMobile() ? 0 : 0;
+  return Math.min(
+    (viewerW() - pad) / rawVP.width,
+    (viewerH() - pad) / rawVP.height
+  );
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+async function init() {
+  const task = pdfjsLib.getDocument(PDF_URL);
+  task.onProgress = ({ loaded, total }) => {
+    if (total) document.getElementById('load-fill').style.width =
+      Math.round(loaded / total * 100) + '%';
+  };
+  pdfDoc      = await task.promise;
+  totalPages  = pdfDoc.numPages;
+
+  setLayoutMode();
+  document.getElementById('loading').style.display = 'none';
+  updateControls();
+}
+
+// ═══════════════════════════════════════════
+// LAYOUT MODE SWITCHER
+// ═══════════════════════════════════════════
+let currentLayout = null; // 'flipbook' | 'strip'
+
+async function setLayoutMode() {
+  if (gridMode) return;
+  const wantStrip = isPortraitMobile();
+  const layout    = wantStrip ? 'strip' : 'flipbook';
+  if (layout === currentLayout) return;
+  currentLayout = layout;
+
+  const flipShell  = document.getElementById('flipbook-shell');
+  const stripShell = document.getElementById('strip-shell');
+
+  if (layout === 'strip') {
+    flipShell.style.display  = 'none';
+    stripShell.style.display = 'block';
+    await buildStrip();
+    scrollStripToPage(currentPage);
+  } else {
+    flipShell.style.display  = 'flex';
+    stripShell.style.display = 'none';
+    await renderFlipPage(currentPage, false);
+  }
+}
+
+// ═══════════════════════════════════════════
+// FLIPBOOK RENDERER
+// ═══════════════════════════════════════════
+async function renderFlipPage(num, animate = true) {
+  if (rendering) return;
+  rendering = true;
+
+  pinchScale = 1;
+  panX = 0; panY = 0;
+  applyTransform(false);
+
+  const stage = document.getElementById('stage');
+  const page  = await pdfDoc.getPage(num);
+  const rawVP = page.getViewport({ scale: 1 });
+  const scale = fitScale(rawVP);
+  const dpr   = getDPR();
+
+  const cssW = rawVP.width  * scale;
+  const cssH = rawVP.height * scale;
+
+  stage.style.width  = cssW + 'px';
+  stage.style.height = cssH + 'px';
+
+  // Fade out existing
+  const prev = stage.querySelector('.page-wrap.visible');
+  if (prev && animate) {
+    prev.classList.remove('visible');
+    prev.classList.add('fade-out');
+    setTimeout(() => { prev.classList.remove('fade-out'); prev.classList.add('hidden'); }, 350);
+  } else if (prev) {
+    prev.classList.remove('visible');
+    prev.classList.add('hidden');
+  }
+
+  // Build or reuse
+  let wrap = stage.querySelector(`[data-page="${num}"]`);
+  if (!wrap) {
+    wrap           = document.createElement('div');
+    wrap.className = 'page-wrap hidden';
+    wrap.dataset.page = num;
+    wrap.style.width  = cssW + 'px';
+    wrap.style.height = cssH + 'px';
+
+    const cvs = makeCanvas(cssW, cssH, dpr);
+    wrap.appendChild(cvs);
+    wrap.appendChild(makeWatermark());
+    stage.appendChild(wrap);
+
+    const ctx = cvs.getContext('2d');
+    ctx.scale(dpr, dpr);
+    await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale }) }).promise;
+  }
+
+  if (animate) {
+    wrap.classList.remove('hidden');
+    wrap.classList.add('fade-in');
+    wrap.classList.add('visible');
+    setTimeout(() => wrap.classList.remove('fade-in'), 400);
+  } else {
+    wrap.classList.remove('hidden');
+    wrap.classList.add('visible');
+  }
+
+  currentPage = num;
+  rendering   = false;
+  updateControls();
+}
+
+function makeCanvas(cssW, cssH, dpr) {
+  const cvs = document.createElement('canvas');
+  cvs.width  = Math.round(cssW * dpr);
+  cvs.height = Math.round(cssH * dpr);
+  cvs.style.width  = cssW + 'px';
+  cvs.style.height = cssH + 'px';
+  return cvs;
+}
+
+// ═══════════════════════════════════════════
+// PINCH ZOOM + PAN (flipbook only)
+// ═══════════════════════════════════════════
+let pinchScale  = 1;
+let pinchBase   = 1;
+let pinchDist0  = 0;
+let pinchActive = false;
+let panX = 0, panY = 0;
+let panBase = { x: 0, y: 0 };
+let pinchMid0   = { x: 0, y: 0 };
+const MIN_SCALE = 1, MAX_SCALE = 5;
+
+// Higher-res re-render when zoomed
+let zoomRenderTimer = null;
+async function reRenderAtZoom(num, zoomLevel) {
+  const stage = document.getElementById('stage');
+  const wrap  = stage.querySelector(`[data-page="${num}"]`);
+  if (!wrap) return;
+
+  const page  = await pdfDoc.getPage(num);
+  const rawVP = page.getViewport({ scale: 1 });
+  const base  = fitScale(rawVP);
+  // Render at base * zoom level for crisp detail, capped
+  const renderScale = Math.min(base * zoomLevel, base * MAX_SCALE);
+  const dpr   = getDPR();
+  const cssW  = rawVP.width  * base;
+  const cssH  = rawVP.height * base;
+  const phyW  = Math.round(cssW * dpr * zoomLevel);
+  const phyH  = Math.round(cssH * dpr * zoomLevel);
+
+  const oldCvs = wrap.querySelector('canvas');
+  const cvs    = document.createElement('canvas');
+  cvs.width    = phyW;
+  cvs.height   = phyH;
+  cvs.style.width  = cssW + 'px';
+  cvs.style.height = cssH + 'px';
+
+  const ctx = cvs.getContext('2d');
+  ctx.scale(dpr * zoomLevel, dpr * zoomLevel);
+  await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale: base }) }).promise;
+
+  if (wrap.contains(oldCvs)) wrap.replaceChild(cvs, oldCvs);
+}
+
+function applyTransform(transition) {
+  const stage = document.getElementById('stage');
+  stage.style.transition = transition
+    ? 'transform 0.3s cubic-bezier(.25,.46,.45,.94)'
+    : 'none';
+  stage.style.transform = `translate(${panX}px, ${panY}px) scale(${pinchScale})`;
+}
+
+function midpoint(t1, t2) {
+  return {
+    x: (t1.clientX + t2.clientX) / 2,
+    y: (t1.clientY + t2.clientY) / 2
+  };
+}
+function dist(t1, t2) {
+  return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+}
+
+// Clamp pan so page edges can't go past shell center
+function clampPan(x, y, scale) {
+  const shell = document.getElementById('flipbook-shell');
+  const sw = shell.offsetWidth;
+  const sh = shell.offsetHeight;
+  const stage = document.getElementById('stage');
+  const sw2 = stage.offsetWidth  * scale;
+  const sh2 = stage.offsetHeight * scale;
+  const maxX = Math.max(0, (sw2 - sw) / 2);
+  const maxY = Math.max(0, (sh2 - sh) / 2);
+  return {
+    x: Math.min(maxX, Math.max(-maxX, x)),
+    y: Math.min(maxY, Math.max(-maxY, y))
+  };
+}
+
+const flipShell = document.getElementById('flipbook-shell');
+let   swStartX = 0, swStartY = 0, swIsPinch = false, swMoved = false;
+
+flipShell.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    swIsPinch   = true;
+    pinchActive = true;
+    pinchBase   = pinchScale;
+    pinchDist0  = dist(e.touches[0], e.touches[1]);
+    pinchMid0   = midpoint(e.touches[0], e.touches[1]);
+    panBase     = { x: panX, y: panY };
+  } else {
+    swIsPinch   = false;
+    pinchActive = false;
+    swMoved     = false;
+    swStartX    = e.touches[0].clientX;
+    swStartY    = e.touches[0].clientY;
+  }
+}, { passive: true });
+
+flipShell.addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && pinchActive) {
+    const d     = dist(e.touches[0], e.touches[1]);
+    const ratio = d / pinchDist0;
+    pinchScale  = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchBase * ratio));
+
+    // Pan follows the midpoint shift
+    const mid  = midpoint(e.touches[0], e.touches[1]);
+    const dx   = mid.x - pinchMid0.x;
+    const dy   = mid.y - pinchMid0.y;
+    const clamped = clampPan(panBase.x + dx, panBase.y + dy, pinchScale);
+    panX = clamped.x;
+    panY = clamped.y;
+    applyTransform(false);
+    swMoved = true;
+  }
+}, { passive: true });
+
+flipShell.addEventListener('touchend', e => {
+  if (pinchActive && e.touches.length < 2) {
+    pinchActive = false;
+    // Snap back to 1 (rebound), reset pan
+    pinchScale = 1;
+    panX = 0; panY = 0;
+    applyTransform(true);
+    swIsPinch = true; // block next swipe nav
+    // Re-render at normal res
+    clearTimeout(zoomRenderTimer);
+    return;
+  }
+
+  if (swIsPinch) { swIsPinch = false; return; }
+
+  const dx = e.changedTouches[0].clientX - swStartX;
+  const dy = e.changedTouches[0].clientY - swStartY;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+    dx < 0 ? goFlip(currentPage + 1) : goFlip(currentPage - 1);
+  }
+}, { passive: true });
+
+// ═══════════════════════════════════════════
+// STRIP BUILDER (portrait phone)
+// ═══════════════════════════════════════════
+async function buildStrip() {
+  const shell = document.getElementById('strip-shell');
+  if (stripBuilt) return;
+  stripBuilt = true;
+  shell.innerHTML = '';
+
+  const dpr = getDPR();
+  const W   = viewerW();
+
+  for (let i = 1; i <= totalPages; i++) {
+    const page  = await pdfDoc.getPage(i);
+    const rawVP = page.getViewport({ scale: 1 });
+
+    // Scale to full width of phone
+    const scale = W / rawVP.width;
+    const cssH  = rawVP.height * scale;
+
+    const wrap = document.createElement('div');
+    wrap.className    = 'strip-page';
+    wrap.dataset.page = i;
+    wrap.style.height = cssH + 'px';
+
+    const cvs = document.createElement('canvas');
+    cvs.width  = Math.round(W * dpr);
+    cvs.height = Math.round(cssH * dpr);
+    cvs.style.width  = W + 'px';
+    cvs.style.height = cssH + 'px';
+
+    wrap.appendChild(cvs);
+    wrap.appendChild(makeWatermark());
+    shell.appendChild(wrap);
+
+    // Track current page while scrolling
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (en.isIntersecting && en.intersectionRatio > 0.5) {
+          currentPage = parseInt(wrap.dataset.page);
+          updateControls();
+        }
+      });
+    }, { root: shell, threshold: 0.5 });
+    observer.observe(wrap);
+
+    // Lazy render using IntersectionObserver
+    const renderObs = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (en.isIntersecting) {
+          const ctx = cvs.getContext('2d');
+          ctx.scale(dpr, dpr);
+          page.render({ canvasContext: ctx, viewport: page.getViewport({ scale }) });
+          renderObs.disconnect();
+        }
+      });
+    }, { root: shell, rootMargin: '200px' });
+    renderObs.observe(wrap);
+
+    // Yield to keep UI responsive
+    await new Promise(r => setTimeout(r, 0));
+  }
+}
+
+function scrollStripToPage(num) {
+  const shell = document.getElementById('strip-shell');
+  const wrap  = shell.querySelector(`[data-page="${num}"]`);
+  if (wrap) wrap.scrollIntoView({ behavior: 'smooth' });
+}
+
+// ═══════════════════════════════════════════
+// GRID
+// ═══════════════════════════════════════════
+const gridShell = document.getElementById('grid-shell');
+let   gridCellsBuilt = false;
+
+document.getElementById('btn-grid').addEventListener('click', () => {
+  gridMode = !gridMode;
+  document.getElementById('btn-grid').classList.toggle('is-active', gridMode);
+
+  const flipShell  = document.getElementById('flipbook-shell');
+  const stripShell = document.getElementById('strip-shell');
+
+  if (gridMode) {
+    flipShell.style.display  = 'none';
+    stripShell.style.display = 'none';
+    gridShell.classList.add('active');
+    buildGrid();
+  } else {
+    gridShell.classList.remove('active');
+    currentLayout = null;
+    setLayoutMode();
+  }
+  updateControls();
+});
+
+async function buildGrid() {
+  const container = document.getElementById('grid-container');
+  if (!gridCellsBuilt) {
+    gridCellsBuilt = true;
+    for (let i = 1; i <= totalPages; i++) {
+      const cell = document.createElement('div');
+      cell.className    = 'grid-thumb';
+      cell.dataset.page = i;
+
+      const numEl = document.createElement('div');
+      numEl.className   = 'g-num';
+      numEl.textContent = i;
+      cell.appendChild(numEl);
+
+      // Watermark on grid thumbs
+      const wmEl = document.createElement('div');
+      wmEl.className = 'wm-grid';
+      wmEl.innerHTML = `<svg viewBox="0 0 400 80" xmlns="http://www.w3.org/2000/svg">
+        <text x="200" y="48" text-anchor="middle" font-family="sans-serif"
+              font-size="26" letter-spacing="8" fill="#fff">${AUTHOR.toUpperCase()}</text>
+        <text x="200" y="68" text-anchor="middle" font-family="sans-serif"
+              font-size="9"  letter-spacing="4" fill="#fff">${COPYRIGHT}</text>
+      </svg>`;
+      cell.appendChild(wmEl);
+
+      // Tap → go to that page in flipbook
+      cell.addEventListener('click', () => {
+        openPageFromGrid(parseInt(cell.dataset.page));
+      });
+
+      container.appendChild(cell);
+    }
+  }
+
+  // Lazy-render thumbnails
+  const THUMB_SCALE = 0.15;
+  const obs = new IntersectionObserver(async entries => {
+    for (const en of entries) {
+      if (!en.isIntersecting) continue;
+      const cell = en.target;
+      if (cell.querySelector('canvas')) { obs.unobserve(cell); continue; }
+      obs.unobserve(cell);
+
+      const num  = parseInt(cell.dataset.page);
+      const page = await pdfDoc.getPage(num);
+      const rawVP = page.getViewport({ scale: 1 });
+      const vp    = page.getViewport({ scale: THUMB_SCALE });
+
+      const cvs   = document.createElement('canvas');
+      cvs.width   = Math.round(vp.width);
+      cvs.height  = Math.round(vp.height);
+      cvs.style.width  = '100%';
+      cvs.style.height = 'auto';
+      cell.style.aspectRatio = `${rawVP.width} / ${rawVP.height}`;
+      cell.insertBefore(cvs, cell.firstChild);
+
+      page.render({ canvasContext: cvs.getContext('2d'), viewport: vp });
+    }
+  }, { root: gridShell, rootMargin: '300px' });
+
+  container.querySelectorAll('.grid-thumb').forEach(c => obs.observe(c));
+}
+
+function openPageFromGrid(num) {
+  // Exit grid, go to flipbook at that page
+  gridMode = false;
+  document.getElementById('btn-grid').classList.remove('is-active');
+  gridShell.classList.remove('active');
+  currentPage   = num;
+  currentLayout = null; // force re-init
+
+  const flipShell  = document.getElementById('flipbook-shell');
+  const stripShell = document.getElementById('strip-shell');
+  flipShell.style.display  = 'none';
+  stripShell.style.display = 'none';
+
+  // Clear flipbook cache so page re-renders at correct size
+  document.getElementById('stage').innerHTML = '';
+  rendering = false;
+
+  setLayoutMode();
+  updateControls();
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function goFlip(num) {
+  if (!pdfDoc || gridMode) return;
+  num = Math.max(1, Math.min(totalPages, num));
+  if (num === currentPage) return;
+  if (currentLayout === 'strip') {
+    currentPage = num;
+    scrollStripToPage(num);
+    updateControls();
+  } else {
+    renderFlipPage(num, true);
+  }
+}
+
+function updateControls() {
+  document.getElementById('page-counter').textContent = `${currentPage} / ${totalPages}`;
+  document.getElementById('btn-prev').disabled  = currentPage <= 1  || gridMode;
+  document.getElementById('btn-first').disabled = currentPage <= 1  || gridMode;
+  document.getElementById('btn-next').disabled  = currentPage >= totalPages || gridMode;
+  document.getElementById('btn-last').disabled  = currentPage >= totalPages || gridMode;
+}
+
+document.getElementById('btn-prev') .addEventListener('click', () => goFlip(currentPage - 1));
+document.getElementById('btn-next') .addEventListener('click', () => goFlip(currentPage + 1));
+document.getElementById('btn-first').addEventListener('click', () => goFlip(1));
+document.getElementById('btn-last') .addEventListener('click', () => goFlip(totalPages));
+
+document.addEventListener('keydown', e => {
+  if (gridMode) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goFlip(currentPage + 1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goFlip(currentPage - 1);
+  if (e.key === 'Home') goFlip(1);
+  if (e.key === 'End')  goFlip(totalPages);
+});
+
+// ═══════════════════════════════════════════
+// RESIZE
+// ═══════════════════════════════════════════
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(async () => {
+    if (gridMode) return;
+    // Orientation or size changed — rebuild layout
+    document.getElementById('stage').innerHTML = '';
+    rendering    = false;
+    stripBuilt   = false;
+    currentLayout = null;
+    document.getElementById('strip-shell').innerHTML = '';
+    pinchScale = 1; panX = 0; panY = 0;
+    await setLayoutMode();
+  }, 220);
+});
+
+// ═══════════════════════════════════════════
+// GO
+// ═══════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
